@@ -19,3 +19,6 @@ pip3 install numpy
 ```sh
 pip3 install Pillow
 ```
+
+```sh
+pip3 install requests

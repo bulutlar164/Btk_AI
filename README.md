@@ -22,3 +22,8 @@ pip3 install Pillow
 
 ```sh
 pip3 install requests
+```
+
+```sh
+pip3 install fastapi
+

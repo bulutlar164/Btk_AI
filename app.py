@@ -1,47 +1,66 @@
-from flask import Flask, request, jsonify
-from flask_cors  import CORS
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.responses import JSONResponse
+from typing import List
 from PIL import Image
+import io
 import numpy as np
+import RandomNumber as rd
 from tensorflow.keras.models import load_model
+from fastapi.middleware.cors import CORSMiddleware
 
-app = Flask(__name__)
-CORS(app)
 
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Gerekirse spesifik alan adları ile değiştir
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Modelinizi buraya yükleyin
 model = load_model('model79_90_8.h5')
-
-PortNumber = 5000
 image_size = (256, 256)
 channels = 1
 
-@app.route('/upload-image', methods=['POST'])
-def upload_image():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file part'}), 400
-    
-    file = request.files['file']
-    
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
+ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png','.PNG'}
 
-    if file and file.filename.endswith('.jpg'):
+def allowed_file(filename: str) -> bool:
+    return any(filename.endswith(ext) for ext in ALLOWED_EXTENSIONS)
 
-        img = Image.open(file).convert('L') 
-        img = img.resize(image_size) 
 
-        img_array = np.array(img)
-        img_array = np.expand_dims(img_array, axis=-1) 
+
+@app.post("/upload-images/")
+async def upload_images(files: List[UploadFile] = File(...)):
+    results = []
+
+    for file in files:
+        if not allowed_file(file.filename):
+            raise HTTPException(status_code=400, detail="Invalid file type. Only .jpg, .jpeg, and .png .PNG files are allowed.")
+
+        rn = rd.random_number()
+        image_data = await file.read()
+        image = Image.open(io.BytesIO(image_data))
+        image = image.convert("L")
+        image = image.resize(image_size)
+
+        img_array = np.array(image)
+        img_array = np.expand_dims(img_array, axis=-1)
         img_array = img_array.astype(np.float32)
-        
+
         x_input = np.zeros((1, image_size[0], image_size[1], channels), dtype=np.float32)
         x_input[0] = img_array
 
         predictions = model.predict(x_input)
-        predicted_Class = np.argmax(predictions, axis=1)
-        list_Data = predicted_Class.tolist()
+        predicted_class = np.argmax(predictions, axis=1).tolist()
 
-        return jsonify({'predicted_class': list_Data[0]}) 
+        results.append({"predicted_class": predicted_class[0],"PeopleRandom": rn})
 
-    return jsonify({'error': 'Invalid file format, please upload a .jpg file'}), 400
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=PortNumber)
+    return JSONResponse(content={"results": results})
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=5000)

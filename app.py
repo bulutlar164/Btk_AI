@@ -4,10 +4,11 @@ from typing import List
 from PIL import Image
 import io
 import numpy as np
-import RandomNumber as rd
+import RandomAtt as rd
 from tensorflow.keras.models import load_model
 from fastapi.middleware.cors import CORSMiddleware
-
+from databaseConnection import Database
+from datetime import datetime
 
 app = FastAPI()
 
@@ -18,6 +19,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+#DatabaseConfiguration
+db = Database(
+    host="localhost",          
+    user="root",               
+    password="Huawei2024!",   
+    database="tektokronik_db"    
+)
+
 
 # Modelinizi buraya yükleyin
 model = load_model('model79_90_8.h5')
@@ -55,11 +65,45 @@ async def upload_images(files: List[UploadFile] = File(...)):
         predictions = model.predict(x_input)
         predicted_class = np.argmax(predictions, axis=1).tolist()
 
+        #Locations Insert
+        add,la,lo = rd.get_random_coordinate()
+        la,lo = rd.get_add_random_cordinates(la,lo)
+        dmg_string=rd.get_damage_status(predicted_class[0])
+        #print(dmg_string)
+        db.insert_location(la,lo,add,"Ankara",dmg_string)
+
+        #Location ID found for another work
+        location_id =db.select_locationid(la,lo,add,"Ankara",dmg_string)
+        #print(location_id)
+
+        #Image Insert
+        directory_l = "btk/imageSave/edited/"  
+        image_name_l = file.filename                                                          
+        image_type_l= 'Drone'
+        capture_date_G = datetime.now()
+        capture_date_L = capture_date_G.strftime('%Y-%m-%d %H:%M:%S')
+        #print(capture_date_L)
+        file_path_l = rd.create_file_path(directory_l,image_name_l)
+        #print(file_path_l)
+        procedes_l = "1"
+        db.insert_images(image_type_l,capture_date_L,file_path_l,la,lo,procedes_l)
+        image_id = db.select_imagesid(image_type_l,capture_date_L,file_path_l,la,lo,procedes_l)
+        #print(image_id)
+        #Image Insert Final
+
+        #Report Insert
+        db.insert_report(image_id,location_id,"Bina",dmg_string)
+        #Report Insert Fina
+
+        #Genel Dönüş
         results.append({"predicted_class": predicted_class[0],"PeopleRandom": rn})
+
 
 
     return JSONResponse(content={"results": results})
 
+def shutdown_event():
+    db.close()
 
 if __name__ == "__main__":
     import uvicorn

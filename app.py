@@ -22,10 +22,10 @@ app.add_middleware(
 
 #DatabaseConfiguration
 db = Database(
-    host="localhost",          
+    host="101.44.222.16:3306",          
     user="root",               
     password="Huawei2024!",   
-    database="tektokronik_db"    
+    database="tektokronik_Db"    
 )
 
 
